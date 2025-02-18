@@ -71,6 +71,7 @@ components = [
     ('ROCR-Runtime', 'rocm-%s' % _rocm_version, {
 #        'checksums': ['30875d440df9d8481ffb24d87755eae20a0efc1114849a72619ea954f1e9206c'],
         'srcdir': '%(name)s-%(version)s',
+        'configopts': '-DBUILD_SHARED_LIBS=ON',
     }),
     ('Clang-OpenMP', 'rocm-%s' % _rocm_version, {
         # uses same sources as llvm-project component
