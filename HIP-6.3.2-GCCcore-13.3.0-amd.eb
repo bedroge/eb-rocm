@@ -1,0 +1,151 @@
+#easyblock = 'CMakeMake'
+easyblock = 'Bundle'
+
+name = 'HIP'
+_rocm_version = '6.3.2'
+version = _rocm_version
+versionsuffix = '-amd'
+
+homepage = 'https://github.com/ROCm/HIP'
+description = """HIP is a C++ Runtime API and Kernel Language that allows
+developers to create portable applications for AMD and NVIDIA GPUs from single
+source code."""
+docurls = ['https://rocmdocs.amd.com']
+
+toolchain = {'name': 'GCCcore', 'version': '13.3.0'}
+
+#        'source_urls': ['https://github.com/ROCm/clr/archive/'],
+#        'download_filename': 'rocm-%(version)s.tar.gz',
+#        'filename': 'clr-rocm-%(version)s.tar.gz',
+
+#        'source_urls': ['https://github.com/ROCm/HIP/archive/'],
+#        'download_filename': 'rocm-%(version)s.tar.gz',
+#        'filename': 'HIP-rocm-%(version)s.tar.gz',
+
+#        'source_urls': ['https://github.com/ROCm/HIPCC/archive/'],
+#        'download_filename': 'rocm-%(version)s.tar.gz',
+#        'filename': 'HIPCC-rocm-%(version)s.tar.gz',
+#patches = [
+#    'clr-rocm-5.6.0_fix_bad_message.patch',
+#    'clr-rocm-5.6.0_fix_bad_rpath_handling.patch',
+#]
+
+builddependencies = [
+    ('binutils', '2.42'),
+    ('CMake', '3.29.3'),
+    ('CppHeaderParser', '2.7.4'),
+]
+
+dependencies = [
+    ('zlib', '1.3.1'),
+    ('libxml2', '2.12.7'),
+    ('numactl', '2.0.18'),
+    ('Perl', '5.38.2'),
+    ('libglvnd', '1.7.0'),
+#    ('Clang-AOMP', '%(version)s'),
+    ('ROCm-LLVM', '%(version)s'),
+#    ('ROCm-CompilerSupport', '%(version)s'),
+    ('rocm-cmake', '%(version)s'),
+    ('rocminfo', '%(version)s'),
+]
+
+default_easyblock = 'CMakeMake'
+
+default_component_specs = {
+#    'source_urls': ['https://github.com/RadeonOpenCompute/%(name)s/archive/'],
+    'source_urls': ['https://github.com/ROCm/%(name)s/archive/'],
+    'sources': [{
+        'download_filename': '%(version)s.tar.gz',
+        'filename': '%(name)s-%(version)s.tar.gz',
+    }],
+    'srcdir': '%(name)s-%(version)s',
+}
+
+components = [
+    ('HIPCC', 'rocm-%s' % _rocm_version, {
+        'sources': [{'filename': 'llvm-project-rocm-6.3.2.tar.gz', 'alt_location': 'ROCm-LLVM'}],
+        'srcdir': 'llvm-project-rocm-%s/amd/hipcc' % _rocm_version,
+        'patches': [('0001-Update-the-ROCMINFO-HIPCLANG-PATHS-inside-hipcc-6.2.0.patch', 'llvm-project-rocm-%s' % _rocm_version)],
+    }),
+    #('clr', 'rocm-%s' % _rocm_version, {}),
+    ('HIP', 'rocm-%s' % _rocm_version, {
+        'sources': [
+            {
+                'source_urls': ['https://github.com/ROCm/clr/archive/'],
+                'download_filename': 'rocm-%(version)s.tar.gz',
+                'filename': 'clr-%(version)s.tar.gz'
+            },
+            {
+                'source_urls': ['https://github.com/ROCm/HIP/archive/'],
+                'download_filename': 'rocm-%(version)s.tar.gz',
+                'filename': 'HIP-%(version)s.tar.gz',
+            },
+        ],
+        'srcdir': 'clr-rocm-%s' % _rocm_version,
+    }),
+]
+
+# AMD uses 'gfx' to identify the GPU, the first number identifies the generation, according to
+# https://www.x.org/wiki/RadeonFeature/#index5h2 while the rest identifies the specific GPU.
+# In the context of EasyBuild this identifier can be thought of as equivalent to the 'sm_<xx>'
+# nomenclature of Nvidia.
+local_default_gfx = 'gfx908'
+
+# Need to build HIPCC first, in later versions it might be possible to make HIPCC a "standalone" package
+#preconfigopts = "mkdir -p %(builddir)s/HIPCC-rocm-%(version)s/build; pushd %(builddir)s/HIPCC-rocm-%(version)s/build;"
+#preconfigopts += " cmake ..; make; popd; echo HIPCC compiled; "
+
+_clopts = [
+    "-DHIP_COMMON_DIR=%(builddir)s/HIP-%(version)s/",
+    #"-DHIP_COMMON_DIR=../HIP-rocm-%(version)s/",
+    "-DHIP_PLATFORM=amd",
+    #"-DHIPCC_BIN_DIR=%(builddir)s/HIPCC-rocm-%(version)s/build",
+    #"-DHIPCC_BIN_DIR=../easybuild_obj",
+    "-DHIPCC_BIN_DIR=%(installdir)s/bin",
+    "-DHIP_CATCH_TEST=0",
+    "-DCLR_BUILD_HIP=ON",
+    "-DCLR_BUILD_OCL=OFF",
+    "-DOFFLOAD_ARCH_STR='--offload-arch=%s'" % local_default_gfx,
+]
+
+configopts = ' '.join(_clopts)
+
+postinstallcmds = [
+    'sed -i "s|ROCM_AGENT_ENUM = .*|ROCM_AGENT_ENUM = \"rocm_agent_enumerator\";|g" %(installdir)s/bin/hipcc.pl',
+]
+
+sanity_check_paths = {
+    'files': ['bin/%s' % x for x in ['hipcc', 'hipcc.pl', 'hipconfig', 'hipconfig.pl']] +
+             ['bin/%s' % x for x in ['roc-obj', 'roc-obj-extract', 'roc-obj-ls']] +
+             ['include/hip/hip_common.h', 'include/hip/hip_runtime.h', 'lib/libamdhip64.%s' % SHLIB_EXT],
+    'dirs': [],
+}
+sanity_check_commands = [
+    'hipcc --help',
+    'hipconfig --full'
+]
+
+modextravars = {
+    'HIP_COMPILER': 'clang',
+    'HIP_INCLUDE_PATH': '%(installdir)s/include',
+    'HIP_LIB_PATH': '%(installdir)s/lib',
+    'HIP_PATH': '%(installdir)s',
+    'HIP_RUNTIME': 'rocclr',
+    'ROCM_PATH': '%(installdir)s',
+}
+
+modluafooter = """
+setenv("DEVICE_LIB_PATH", os.getenv("EBROOTROCMMINLLVM") .. "/amdgcn/bitcode")
+setenv("HIP_CLANG_INCLUDE_PATH", os.getenv("EBROOTROCMMINLLVM") .. "/include")
+setenv("HIP_CLANG_PATH", os.getenv("EBROOTROCMMINLLVM") .. "/bin")
+setenv("HSA_PATH", os.getenv("EBROOTROCMMINLLVM"))
+"""
+
+modtclfooter = """
+setenv DEVICE_LIB_PATH $::env(EBROOTROCMMINLLVM)/amdgcn/bitcode
+setenv HIP_CLANG_INCLUDE_PATH $::env(EBROOTROCMMINLLVM)/include
+setenv HIP_CLANG_PATH $::env(EBROOTROCMMINLLVM)/bin
+setenv HSA_PATH $::env(EBROOTROCMMINLLVM)
+"""
+
+moduleclass = 'tools'
