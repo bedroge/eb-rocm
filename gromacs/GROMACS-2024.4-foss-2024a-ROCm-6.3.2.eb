@@ -1,0 +1,74 @@
+name = 'GROMACS'
+version = '2024.4'
+local_rocmver = '6.3.2'
+versionsuffix = '-ROCm-%s' % local_rocmver
+
+homepage = 'https://www.gromacs.org'
+description = """
+GROMACS is a versatile package to perform molecular dynamics, i.e. simulate the
+Newtonian equations of motion for systems with hundreds to millions of
+particles.
+
+This is a GPU enabled build, containing both MPI and threadMPI binaries.
+
+It also contains the gmxapi extension for the single precision MPI build.
+"""
+
+toolchain = {'name': 'foss', 'version': '2024a'}
+toolchainopts = {'openmp': True, 'usempi': True}
+
+source_urls = [
+    'https://ftp.gromacs.org/pub/gromacs/',
+    'ftp://ftp.gromacs.org/pub/gromacs/',
+]
+sources = [SOURCELOWER_TAR_GZ]
+patches = [
+    'GROMACS-2023.1_set_omp_num_threads_env_for_ntomp_tests.patch',
+    'GROMACS-2023.1_fix_tests_for_gmx_thread_mpi.patch',
+]
+
+builddependencies = [
+    ('CMake', '3.29.3'),
+    ('scikit-build', '0.17.6'),
+    ('AdaptiveCpp', '24.10.0', versionsuffix),
+    #('AdaptiveCpp', '24.10.0', versionsuffix, ('GCC', '13.3.0')),
+]
+
+dependencies = [
+    ('ROCm', local_rocmver),
+    ('UCX-ROCm', '1.16.0', versionsuffix),
+    ('Python', '3.12.3'),
+    ('SciPy-bundle', '2024.05'),
+    ('networkx', '3.4.2'),
+    ('mpi4py', '4.0.1'),
+    # The GROMACS build finds and uses the Boost module required by AdaptiveCpp
+    # and as a result we also need Boost as a GROMACS runtime dependency
+    ('Boost', '1.85.0'),
+]
+
+exts_defaultclass = 'PythonPackage'
+
+exts_default_options = {
+    'source_urls': [PYPI_SOURCE],
+    'use_pip': True,
+    'download_dep_fail': True,
+    'sanity_pip_check': True,
+}
+
+exts_list = [
+    ('gmxapi', '0.4.2', {
+        'preinstallopts': 'export CMAKE_ARGS="-Dgmxapi_ROOT=%(installdir)s ' +
+                          '-C %(installdir)s/share/cmake/gromacs_mpi/gromacs-hints_mpi.cmake" && ',
+        'checksums': ['c746c6498c73a75913d7fcb01c13cc001d4bcb82999e9bf91d63578565ed1a1f'],
+    }),
+]
+
+# Use the same C and C++ compilers for which the AdaptiveCpp module has been configured
+configopts = '-DCMAKE_C_COMPILER="${EBROOTROCMMINLLVM}/bin/clang" '
+configopts += '-DCMAKE_CXX_COMPILER="${EBROOTROCMMINLLVM}/bin/clang++" '
+
+modextrapaths = {
+    'PYTHONPATH': 'lib/python%(pyshortver)s/site-packages',
+}
+
+moduleclass = 'bio'
