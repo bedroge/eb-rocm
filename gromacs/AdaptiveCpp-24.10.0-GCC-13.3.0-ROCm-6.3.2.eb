@@ -78,13 +78,13 @@ sanity_check_commands = [
 ]
 
 modluafooter = """
-setenv('HIPSYCL_PATH', os.getenv('EBROOTADAPTIVECPP'))
+setenv('HIPSYCL_PATH', root)
 setenv('HIPSYCL_ROCM_PATH', os.getenv('EBROOTROCMMINLLVM'))
 setenv('HIPSYCL_TARGETS', 'hip:%s')
 """ % local_gpuarch
 
 modtclfooter = """
-setenv HIPSYCL_PATH $::env(EBROOTADAPTIVECPP)
+setenv HIPSYCL_PATH root
 setenv HIPSYCL_ROCM_PATH $::env(EBROOTROCMMINLLVM)
 setenv HIPSYCL_TARGETS hip:%s
 """ % local_gpuarch
