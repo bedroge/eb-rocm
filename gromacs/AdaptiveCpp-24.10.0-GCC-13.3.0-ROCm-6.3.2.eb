@@ -54,11 +54,11 @@ configopts += '-DWITH_LEVEL_ZERO_BACKEND=OFF '
 #configopts += '-DDEFAULT_GPU_ARCH="%s" ' % local_gpuarch
 #configopts += '-DAMDGPU_TARGETS="%s" ' % local_gpuarch
 #configopts += '-DGPU_TARGETS="%s" ' % local_gpuarch
-configopts += '-DDEFAUKT_TARGETS="hip:%s" ' % local_gpuarch
+configopts += '-DDEFAULT_TARGETS="hip:%s" ' % local_gpuarch
 configopts += '-DWITH_SSCP_COMPILER=OFF '
 # Additional option needed due to CMake-related bug in 23.10.0 release
 # https://github.com/AdaptiveCpp/AdaptiveCpp/issues/1268
-configopts += '-DACPP_VERSION_SUFFIX="-" '
+#configopts += '-DACPP_VERSION_SUFFIX="-" '
 
 sanity_check_paths = {
     'files': ['bin/syclcc-clang',
