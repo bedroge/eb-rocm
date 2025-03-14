@@ -1,0 +1,30 @@
+easyblock = 'CMakeMake'
+
+name = 'rocm-smi'
+version = '6.3.3'
+
+homepage = 'https://github.com/ROCm/rocm_smi_lib'
+description = """The ROCm SMI library, is part of the ROCm software stack.
+It is a C++ library for Linux that provides a user space interface for applications to
+monitor and control GPU applications."""
+docurls = ['https://rocmdocs.amd.com']
+
+toolchain = {'name': 'GCCcore', 'version': '13.3.0'}
+
+source_urls = ["https://github.com/ROCm/rocm_smi_lib/archive/"]
+sources = ["rocm-%(version)s.tar.gz"]
+checksums = ['679dfd0cbd213d27660e546584ab013afea286eff95928d748d168503305c9c4']
+
+builddependencies = [
+    ('binutils', '2.42'),
+    ('CMake', '3.29.3'),
+]
+
+sanity_check_paths = {
+    'files': ['bin/rocm-smi', 'libexec/rocm_smi/rocm_smi.py', 'lib/librocm_smi64.%s' % SHLIB_EXT,
+              'libexec/rocm_smi/rsmiBindings.py'],
+    'dirs': ['include/rocm_smi', 'include/oam'],
+}
+sanity_check_commands = ['rocm-smi --help']
+
+moduleclass = 'tools'
