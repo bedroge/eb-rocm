@@ -36,6 +36,4 @@ sanity_check_paths = {
 }
 sanity_check_commands = ['amd-smi --help']
 
-modextrapaths = {'PYTHONPATH': ['share/amd_smi', 'libexec/amdsmi_cli']}
-
 moduleclass = 'tools'
