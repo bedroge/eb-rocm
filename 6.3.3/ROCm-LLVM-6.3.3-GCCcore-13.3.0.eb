@@ -1,0 +1,149 @@
+easyblock = 'Bundle'
+
+name = 'ROCm-LLVM'
+_rocm_version = '6.3.3'
+version = _rocm_version
+
+homepage = 'https://github.com/ROCm/llvm-project'
+description = """ROCm-LLVM is an open source Clang/LLVM based compiler.
+It is an AMD Fork of The LLVM Compiler Infrastructure, and aims to contain all of upstream LLVM.
+It also includes several AMD-specific additions in the llvm-project/amd directory."""
+docurls = ['https://rocm.docs.amd.com/projects/llvm-project/']
+
+toolchain = {'name': 'GCCcore', 'version': '13.3.0'}
+
+builddependencies = [
+    ('CMake', '3.29.3'),
+    ('Perl', '5.38.2'),
+    ('Python', '3.12.3'),
+    ('pkgconf', '2.2.0'),
+]
+
+dependencies = [
+    ('binutils', '2.42'),
+    ('elfutils', '0.191'),
+    ('zlib', '1.3.1'),
+    ('hwloc', '2.10.0'),
+    ('GMP', '6.3.0'),
+    ('libxml2', '2.12.7'),
+    ('ncurses', '6.5'),
+    ('libffi', '3.4.5'),
+    ('libdrm', '2.4.122'),
+    ('numactl', '2.0.18'),
+    ('Z3', '4.13.0'),
+    # ('lit', '18.1.8'),
+]
+
+default_easyblock = 'CMakeMake'
+
+default_component_specs = {
+    'source_urls': ['https://github.com/ROCm/%(name)s/archive/'],
+    'sources': [{
+        'download_filename': '%(version)s.tar.gz',
+        'filename': '%(name)s-%(version)s.tar.gz',
+    }],
+    'srcdir': '%(name)s-%(version)s',
+}
+
+local_rocm_llvm_source = 'llvm-project-rocm-%s.tar.gz' % _rocm_version
+local_amd_gfx_list = ['gfx900', 'gfx902', 'gfx906', 'gfx908', 'gfx90a', 'gfx1030', 'gfx1031']
+
+components = [
+    ('llvm-project', 'rocm-%s' % _rocm_version, {
+        #'easyblock': 'EB_LLVM',
+        'easyblock': 'EB_ROCm_minus_LLVM',
+        'amd_gfx_list': local_amd_gfx_list,
+        'build_clang_extras': True, # includes amdclang tools
+        'build_openmp': False, # gets built later as a separate component, requires AMD Device Libs
+        'build_openmp_offload': False,
+        'build_openmp_tools': False,
+        'build_lld': True,
+        'build_runtimes': True,
+        'build_shared_libs': False, # added
+        'skip_all_tests': True, # requires lit and does not seem to work for bundle components?
+        'configopts':  '-DPACKAGE_VENDOR=AMD '
+                       '-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON -DCLANG_DEFAULT_LINKER=lld '
+                       '-DCLANG_DEFAULT_RTLIB=compiler-rt -DCLANG_DEFAULT_UNWINDLIB=libgcc ',
+        'sources': [{
+            'download_filename': '%(version)s.tar.gz',
+            'filename': local_rocm_llvm_source, #'%(name)s-%(version)s.tar.gz',
+            # rename the extracted directory to the one that the LLVM easyblock expects
+            'extract_cmd': f'tar xfz %s && mv %(name)s-%(version)s %(name)s-%(version)s.src'
+        }]
+    }),
+    ('ROCm-Device-Libs', 'rocm-%s' % _rocm_version, {
+        # uses same sources as llvm-project component
+        'sources': [{'filename': local_rocm_llvm_source, 'extract_cmd': 'echo %s'}],
+        'srcdir': f'llvm-project-%(version)s.src/amd/device-libs',
+        'configopts': '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang '
+                      '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++ '
+                      '-DLLVM_INSTALL_PREFIX=%(installdir)s '
+                      '-DLLVM_DIR=%(installdir)s/lib/cmake/llvm '
+    }),
+    ('ROCm-comgr', 'rocm-%s' % _rocm_version, {
+        # uses same sources as llvm-project component
+        'sources': [{'filename': local_rocm_llvm_source, 'extract_cmd': 'echo %s'}],
+        'srcdir': 'llvm-project-%(version)s.src/amd/comgr',
+        'configopts': '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang '
+                      '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++ '
+                      '-DLLVM_INSTALL_PREFIX=%(installdir)s '
+                      '-DLLVM_DIR=%(installdir)s/lib/cmake/llvm '
+                      '-DROCM_PATH=%(installdir)s '
+    }),
+    ('ROCR-Runtime', 'rocm-%s' % _rocm_version, {
+        #'srcdir': '%(name)s-%(version)s',
+        'configopts': '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang '
+                      '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++ '
+                      '-DBUILD_SHARED_LIBS=ON',
+    }),
+    ('aomp-extras', 'rocm-%s' % _rocm_version, {
+        #'srcdir': '%(name)s-%(version)s',
+        'configopts': '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang '
+                      '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++ '
+                      '-DLLVM_DIR=%(installdir)s/lib/cmake/llvm '
+                      f'-DAOMP_VERSION_STRING={_rocm_version} '
+                      #'-DDEVICE_LIBS_DIR=%(installdir)s/amdgcn/bitcode ',
+                      '-DAOMP_STANDALONE_BUILD=0 '
+                      #'-DDEVICELIBS_ROOT= ',
+                      #'-DNEW_BC_PATH=1 ',
+                      #'-DAOMP={llvm_prefix} ',
+    }),
+    ('llvm-project-openmp', 'rocm-%s' % _rocm_version, {
+        # uses same sources as llvm-project component
+        'sources': [{'filename': local_rocm_llvm_source, 'extract_cmd': 'echo %s'}],
+        'srcdir': 'llvm-project-%(version)s.src/openmp',
+        'configopts': '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang '
+                      '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++ '
+                      '-DLLVM_INSTALL_PREFIX=%(installdir)s '
+                      '-DLLVM_DIR=%(installdir)s/lib/cmake/llvm '
+                      '-DCLANG_ENABLE_AMDCLANG=ON '
+                      '-DOPENMP_ENABLE_LIBOMPTARGET=ON '
+                      '-DOPENMP_ENABLE_LIBOMPTARGET_HSA=ON '
+                      '-DLIBOMP_COPY_EXPORTS=OFF '
+                      f'-DLIBOMPTARGET_AMDGCN_GFXLIST="{";".join(local_amd_gfx_list)}" '
+                      '-DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES="60;61;62;70;72;75;80;86;89;90" '
+    }),
+    ('libpgmath', 'rocm-%s' % _rocm_version, {
+        # same source as flang
+        'sources': ['flang-%(version)s.tar.gz'],
+        'srcdir': 'flang-%(version)s/runtime/libpgmath',
+        'configopts': '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang '
+                      '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++ '
+                      '-DLLVM_DIR=%(installdir)s/lib/cmake/llvm '
+    }),
+#    ('flang', 'rocm-%s' % _rocm_version, {
+#        #'srcdir': '%(name)s-%(version)s',
+#        'configopts': '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang '
+#                      '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++ '
+#                      '-DLLVM_DIR=%(installdir)s/lib/cmake/llvm '
+#                      '-DCMAKE_C_FLAGS="-I%(start_dir)s/%(name)s-%(version)s/runtime/libpgmath/lib/common" '
+#                      '-DCMAKE_CXX_FLAGS="-I%(start_dir)s/%(name)s-%(version)s/runtime/libpgmath/lib/common" '
+#                      '-DFLANG_OPENMP_GPU_AMD=ON -DFLANG_OPENMP_GPU_NVIDIA=ON -DLLVM_INSTALL_RUNTIME=ON '
+#    }),
+]
+
+modextravars = {
+    'HIP_DEVICE_LIB_PATH': '%(installdir)s/amdgcn/bitcode',
+}
+
+moduleclass = 'tools'
