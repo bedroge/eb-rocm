@@ -1,0 +1,166 @@
+#easyblock = 'EB_ROCm_minus_LLVM'
+#easyblock = 'EB_LLVM'
+easyblock = 'Bundle'
+
+name = 'ROCm-LLVM'
+_rocm_version = '6.4.0'
+version = _rocm_version
+_llvm_version = '19.0.0'
+
+homepage = 'https://github.com/ROCm/llvm-project'
+description = """ROCm-LLVM is an open source Clang/LLVM based compiler.
+It is an AMD Fork of The LLVM Compiler Infrastructure, and aims to contain all of upstream LLVM.
+It also includes several AMD-specific additions in the llvm-project/amd directory."""
+docurls = ['https://rocmdocs.amd.com']
+
+toolchain = {'name': 'GCCcore', 'version': '13.3.0'}
+
+builddependencies = [
+    ('CMake', '3.29.3'),
+    ('Perl', '5.38.2'),
+    ('Python', '3.12.3'),
+    ('pkgconf', '2.2.0'),
+    ('xxd', '9.1.1275'), # required for ROCR-Runtime
+]
+
+dependencies = [
+    ('binutils', '2.42'),
+    ('elfutils', '0.191'),
+    ('zlib', '1.3.1'),
+    ('hwloc', '2.10.0'),
+    ('GMP', '6.3.0'),
+    ('libxml2', '2.12.7'),
+    ('ncurses', '6.5'),
+    ('libffi', '3.4.5'),
+    ('libdrm', '2.4.122'),
+    ('numactl', '2.0.18'),
+#    ('Z3', '4.13.0'),
+]
+
+local_rocm_llvm_source = 'llvm-project-rocm-%s.tar.gz' % _rocm_version
+local_common_cmake_configopts = ' '.join([
+    '-DCMAKE_C_COMPILER=%(installdir)s/bin/clang',
+    '-DCMAKE_CXX_COMPILER=%(installdir)s/bin/clang++',
+    '-DLLVM_INSTALL_PREFIX=%(installdir)s',
+    '-DLLVM_DIR=%(installdir)s/lib/cmake/llvm',
+])
+
+# Default AMD GPU architectures to build for
+#
+# AMD uses 'gfx' to identify the GPU, the first number identifies the generation, according to
+# https://www.x.org/wiki/RadeonFeature/#index5h2 while the rest identifies the specific GPU.
+# In the context of EasyBuild this identifier can be thought of as equivalent to the 'sm_<xx>'
+# nomenclature of Nvidia.
+local_amd_gfx_list = [
+    'gfx700', 'gfx701',
+    'gfx801', 'gfx803',
+    'gfx900', 'gfx902', 'gfx906', 'gfx908', 'gfx90a', 'gfx90c', 'gfx940',
+    'gfx1010', 'gfx1030', 'gfx1031', 'gfx1032', 'gfx1033', 'gfx1034', 'gfx1035', 'gfx1036',
+    'gfx1100', 'gfx1101', 'gfx1102', 'gfx1103',
+]
+
+
+default_easyblock = 'CMakeMake'
+
+default_component_specs = {
+    'source_urls': ['https://github.com/ROCm/%(name)s/archive/'],
+    'sources': [{
+        'download_filename': '%(version)s.tar.gz',
+        'filename': '%(name)s-%(version)s.tar.gz',
+    }],
+    'srcdir': '%(name)s-%(version)s',
+}
+
+# patch for ROCR-runtime, always dlopen
+components = [
+    ('llvm-project', '%s-rocm-%s' % (_llvm_version, _rocm_version), {
+        #'easyblock': 'EB_LLVM',
+        'easyblock': 'EB_ROCm_minus_LLVM',
+        'sources': [{
+            'download_filename': 'rocm-%s.tar.gz' % _rocm_version,
+            'filename': local_rocm_llvm_source, #'%(name)s-%(version)s.tar.gz',
+            # rename the extracted directory to the one that the LLVM easyblock expects
+            'extract_cmd': 'tar xfz %%s && mv %%(name)s-rocm-%s %%(name)s-%%(version)s.src' % _rocm_version,
+        }],
+        'start_dir': 'llvm-project-19.0.0-rocm-6.4.0.src',
+        #'patches': ['ROCm-LLVM-6.3.3_correct-path-to-openmp-project.patch', 'ROCm-LLVM-6.3.3_rpath_fix_amdllvm.patch'],
+        #'patches': ['dlopen.patch'],
+        #'configopts': '-DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON',
+        #'configopts': '-DCLANG_ENABLE_AMDCLANG=ON -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON '
+        #              '-DCLANG_DEFAULT_RTLIB=compiler-rt -DCLANG_DEFAULT_UNWINDLIB=libgcc ',
+        #'amd_gfx_list': [],
+        #'amd_gfx_list': ['gfx90a', 'gfx908', 'gfx906'],
+        #'amd_gfx_list': ['gfx900', 'gfx902', 'gfx906', 'gfx908', 'gfx90a', 'gfx1030', 'gfx1031'],
+        #'bootstrap': False,
+        'amd_gfx_list': local_amd_gfx_list,
+        'build_lld': True,
+        'build_clang_extras': True,
+        'build_openmp_offload': False, #True,
+        'build_openmp_tools': False, #True, #False,
+        'build_runtimes': True,
+        'full_llvm': False,
+        'skip_all_tests': True,
+#        'installopts': ' && rm -rf %(builddir)s/llvm.obj.*',
+    }),
+    #('AMD-DeviceLibs', 'rocm-%s' % _rocm_version, {
+    #    # sources are located in amd/device-libs subdir of llvm-project component
+    #    'sources': [{'filename': local_rocm_llvm_source, 'extract_cmd': 'echo %s'}],
+    #    'srcdir': 'llvm-project-%s-%%(version)s.src/amd/device-libs' % _llvm_version,
+    #    'configopts': local_common_cmake_configopts,
+    #}),
+    ('ROCm-comgr', 'rocm-%s' % _rocm_version, {
+        # sources are located in amd/comgr subdir of llvm-project component
+        #'sources': [{'filename': local_rocm_llvm_source, 'extract_cmd': 'echo %s'}],
+        'sources': [{'filename': local_rocm_llvm_source, 'extract_cmd': 'echo %s'}],
+        'srcdir': 'llvm-project-%s-%%(version)s.src/amd/comgr' % _llvm_version,
+        'prebuildopts': 'export ROCM_PATH=%(installdir)s && ',
+        'configopts': local_common_cmake_configopts + ' -DROCM_DIR=%(installdir)s/share/rocm/cmake'
+    }),
+    ('ROCR-Runtime', 'rocm-%s' % _rocm_version, {
+        'srcdir': '%(name)s-%(version)s',
+        'configopts': local_common_cmake_configopts + ' -DBUILD_SHARED_LIBS=ON',
+    }),
+    ('llvm-project-openmp', '%s-rocm-%s' % (_llvm_version, _rocm_version), {
+        #'easyblock': 'EB_LLVM',
+        'easyblock': 'EB_ROCm_minus_LLVM',
+        'sources': [{
+            'download_filename': 'rocm-%s.tar.gz' % _rocm_version,
+            'filename': local_rocm_llvm_source, #'%(name)s-%(version)s.tar.gz',
+            # rename the extracted directory to the one that the LLVM easyblock expects
+            'extract_cmd': 'echo %s',
+            #'extract_cmd': 'rm -rf %(builddir)s/llvm.obj.*' # remove build dirs from first component
+            #'extract_cmd': 'tar xfz %%s && mv %%(name)s-rocm-%s %%(name)s-%%(version)s.src' % _rocm_version,
+        }],
+        'start_dir': 'llvm-project-19.0.0-rocm-6.4.0.src',
+        #'patches': ['ROCm-LLVM-6.3.3_correct-path-to-openmp-project.patch', 'ROCm-LLVM-6.3.3_rpath_fix_amdllvm.patch'],
+        #'patches': ['dlopen.patch'],
+        #'preconfigopts': 'rm -rf %(builddir)s/llvm.obj.* && ',
+        #'configopts': '-DCLANG_ENABLE_AMDCLANG=ON -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON '
+        #              '-DCLANG_DEFAULT_RTLIB=compiler-rt -DCLANG_DEFAULT_UNWINDLIB=libgcc ',
+        #'amd_gfx_list': ['gfx90a', 'gfx908', 'gfx906'],
+        #'amd_gfx_list': ['gfx900', 'gfx902', 'gfx906', 'gfx908', 'gfx90a', 'gfx1030', 'gfx1031'],
+        #'bootstrap': False,
+        'amd_gfx_list': local_amd_gfx_list,
+        'build_lld': True,
+        'build_clang_extras': True,
+        'build_openmp_offload': True,
+        'build_openmp_tools': True,
+        'build_runtimes': True,
+        'full_llvm': False,
+        'skip_all_tests': True,
+    }),
+    ('aomp-extras', 'rocm-%s' % _rocm_version, {
+        'configopts': local_common_cmake_configopts + 
+                      ' -DAOMP_STANDALONE_BUILD=0 -DAOMP_VERSION_STRING=%s ' % _rocm_version
+    }),
+
+]
+
+sanity_check_components = ['llvm-project']
+#sanity_check_all_components = True
+
+modextravars = {
+    'HIP_DEVICE_LIB_PATH': '%(installdir)s/amdgcn/bitcode',
+}
+
+moduleclass = 'tools'
